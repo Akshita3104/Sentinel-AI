@@ -13,6 +13,7 @@ import numpy as np
 from datetime import datetime
 import socket
 import time
+import random
 
 app = Flask(__name__)
 CORS(app, origins=["*"])  # Allow all origins
@@ -84,6 +85,38 @@ def block_ip(ip):
     return False
 
 # ==========================================================
+# NETWORK SLICE DETECTION
+# ==========================================================
+def get_network_slice(pkt_size, protocol, src_port=None, dst_port=None):
+    """
+    Enhanced network slice detection based on packet characteristics and ports
+    - eMBB: High bandwidth traffic (video, downloads, large data transfers)
+    - URLLC: Low latency traffic (gaming, VoIP, real-time applications)
+    - mMTC: IoT/device traffic (sensors, periodic updates)
+    """
+    # Common ports for different types of traffic
+    VIDEO_PORTS = {80, 443, 1935, 554, 1936, 3478, 3479, 3480}  # HTTP/HTTPS, RTMP, RTSP, STUN
+    GAMING_PORTS = {80, 443, 1935, 3478, 3479, 3480, 27015, 27016, 27017, 27018, 27019, 27020}  # Common game ports
+    VOIP_PORTS = {5060, 5061, 3478, 3479, 3480, 5004, 5005, 10000}  # SIP, STUN, RTP
+    IOT_PORTS = {1883, 8883, 5683, 5684}  # MQTT, CoAP
+
+    # Check by port first (more reliable)
+    if dst_port in IOT_PORTS or src_port in IOT_PORTS:
+        return 'mMTC'
+    if dst_port in VOIP_PORTS or src_port in VOIP_PORTS or dst_port in GAMING_PORTS or src_port in GAMING_PORTS:
+        return 'URLLC'
+    if dst_port in VIDEO_PORTS or src_port in VIDEO_PORTS:
+        return 'eMBB'
+
+    # Fallback to size-based detection
+    if pkt_size > 800:  # Large packets likely to be eMBB
+        return 'eMBB'
+    elif protocol in ['TCP', 'UDP'] and pkt_size < 200:  # Small packets might be URLLC
+        return 'URLLC'
+    else:  # Default to mMTC for everything else
+        return 'mMTC'
+
+# ==========================================================
 # ML / FALLBACK DETECTOR
 # ==========================================================
 def is_ddos_attack(pkt_size, pps):
@@ -141,12 +174,50 @@ def capture_loop():
             # SEND LIVE PACKET TO NODE BACKEND
             # ==========================================
             try:
-                requests.post(NODE_LIVEPACKET, json={
+                # Get source and destination ports if available
+                src_port = None
+                dst_port = None
+                if hasattr(pkt, 'tcp'):
+                    src_port = int(getattr(pkt.tcp, 'srcport', 0))
+                    dst_port = int(getattr(pkt.tcp, 'dstport', 0))
+                elif hasattr(pkt, 'udp'):
+                    src_port = int(getattr(pkt.udp, 'srcport', 0))
+                    dst_port = int(getattr(pkt.udp, 'dstport', 0))
+                
+                # Determine network slice with port information
+                network_slice = get_network_slice(size, protocol, src_port, dst_port)
+                
+                # Check if packet is malicious (using the same logic as DDoS detection)
+                is_malicious = is_ddos_attack(size, pps)
+                detection_reason = None
+                confidence = 0.0
+                
+                if is_malicious:
+                    detection_reason = f"High packet rate: {pps:.0f} pps"
+                    confidence = min(pps / 100, 0.99)  # Higher PPS = higher confidence
+                
+                # Prepare packet data
+                packet_data = {
                     "srcIP": src_ip,
                     "dstIP": dst_ip,
                     "protocol": protocol,
-                    "packetSize": size
-                }, timeout=0.1)
+                    "packetSize": size,
+                    "srcPort": src_port,
+                    "dstPort": dst_port,
+                    "network_slice": network_slice,
+                    "isMalicious": is_malicious,
+                    "timestamp": int(time.time() * 1000)  # Current timestamp in milliseconds
+                }
+                
+                # Add detection info if malicious
+                if is_malicious:
+                    packet_data.update({
+                        "detectionReason": detection_reason,
+                        "confidence": round(confidence, 2)
+                    })
+                
+                # Send to frontend
+                requests.post(NODE_LIVEPACKET, json=packet_data, timeout=0.1)
             except Exception as e:
                 log.debug(f"Live packet send failed: {e}")
 
