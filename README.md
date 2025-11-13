@@ -23,7 +23,7 @@ An advanced, real-time system designed for intelligent DDoS detection and mitiga
 ```
 Ly-Project/
 │
-├── backend/                 # Node.js backend API
+├── backend/            
 │   ├── controllers/
 │   ├── models/
 │   ├── routes/
@@ -33,7 +33,7 @@ Ly-Project/
 │   ├── tests/
 │   └── index.js
 │
-├── frontend/                # React + Vite frontend UI
+├── frontend/                
 │   ├── src/
 │   │   ├── components/
 │   │   ├── pages/
@@ -45,7 +45,7 @@ Ly-Project/
 │   ├── public/
 │   └── vite.config.js
 │
-├── model/                   # Python ML Model (Flask API)
+├── model/                  
 │   ├── app/
 │   │   ├── ml/
 │   │   ├── api/
@@ -54,13 +54,9 @@ Ly-Project/
 │   ├── tests/
 │   └── requirements.txt
 │
-├── scripts/                 # (Optional) Helper dev scripts
-├── config/                  # (Optional) Shared/global settings
-├── docs/                    # (Optional) Documentation, diagrams, papers
 ├── .gitignore
 ├── README.md
 ├── LICENSE
-└── docker-compose.yml       # (Optional) Container orchestration
 ```
 
 ---
