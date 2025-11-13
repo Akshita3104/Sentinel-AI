@@ -46,7 +46,7 @@ NODE_HOST      = "localhost"
 NODE_URL       = f"http://{NODE_HOST}:3000/api/emit-blocked-ip"
 NODE_LIVEPACKET= f"http://{NODE_HOST}:3000/api/live-packet"
 
-MODEL_PATH     = "models/randomforest_dummy.pkl"
+MODEL_PATH = "../models/randomforest_enhanced.pkl"
 BLOCKED_IPS    = set()
 running        = False
 

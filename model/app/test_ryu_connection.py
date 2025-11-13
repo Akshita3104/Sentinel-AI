@@ -1,19 +1,37 @@
+# test_ryu.py — Test Ryu Controller Connection
 import requests
+import json
 
-RYU_IP = "10.190.169.7"
-RYU_PORT = 8080
+RYU_IP   = "192.168.56.101"   # Your RYU VM IP
+RYU_PORT = 8080               # Default Ryu REST API port
+RYU_URL  = f"http://{RYU_IP}:{RYU_PORT}"
 
-try:
-    # test the Ryu switch list API
-    url = f"http://{RYU_IP}:{RYU_PORT}/stats/switches"
-    print(f"Testing Ryu Controller at {url}")
+def test_ryu_connection():
+    # Test 1: List switches
+    url = f"{RYU_URL}/stats/switches"
+    print(f"Testing Ryu at {url}...")
 
-    response = requests.get(url, timeout=5)
+    try:
+        response = requests.get(url, timeout=5)
+        if response.status_code == 200:
+            switches = response.json()
+            print("SUCCESS: Ryu Controller is LIVE!")
+            print(f"   → Switches: {switches}")
+            return True
+        else:
+            print(f"Failed: HTTP {response.status_code}")
+            print(response.text)
+            return False
+    except requests.exceptions.ConnectionError:
+        print("Failed: Cannot reach Ryu. Is it running?")
+        return False
+    except requests.exceptions.Timeout:
+        print("Failed: Request timed out (5s)")
+        return False
+    except Exception as e:
+        print(f"Failed: Unexpected error: {e}")
+        return False
 
-    if response.status_code == 200:
-        print("✅ Successfully connected to Ryu Controller!")
-        print("Switches:", response.json())
-    else:
-        print(f"⚠️ Unexpected status code: {response.status_code}")
-except Exception as e:
-    print(f"❌ Connection failed: {e}")
+# Run test
+if __name__ == "__main__":
+    test_ryu_connection()
