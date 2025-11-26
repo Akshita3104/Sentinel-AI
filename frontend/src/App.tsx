@@ -1,29 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { Wifi, WifiOff, Activity, Shield, AlertTriangle } from 'lucide-react';
-import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
-import { CircularProgressbar, buildStyles } from 'react-circular-progressbar';
-import 'react-circular-progressbar/dist/styles.css';
-import clsx from 'clsx';
 import { apiService, getSocket } from './services/api';
-import BlockedIPs from './components/BlockedIPs';
+import Header from './components/Header';
+import ConnectionStatus from './components/ConnectionStatus';
+import StatsPanel from './components/StatsPanel';
+import ControlButton from './components/ControlButton';
 import LivePacketTable from './components/LivePacketTable';
-
-export interface Packet {
-  timestamp: number;
-  srcIP: string;
-  dstIP: string;
-  protocol: string;
-  network_slice?: string;
-  packetSize: number;
-  isMalicious?: boolean;
-  detectionReason?: string;
-  confidence?: number;
-  packet_data?: {
-    simulated?: boolean;
-    avg_packet_size?: number;
-    [key: string]: any;
-  };
-}
+import TrafficChart from './components/TrafficChart';
+import BlockedIPs from './components/BlockedIPs';
+import Footer from './components/Footer';
+import { Packet } from './types';
 
 export default function App() {
   const [connected, setConnected] = useState(false);
@@ -31,7 +16,9 @@ export default function App() {
   const [packets, setPackets] = useState(0);
   const [pps, setPps] = useState(0);
   const [livePackets, setLivePackets] = useState<Packet[]>([]);
-  const [trafficData, setTrafficData] = useState<Array<{time: number; normalPps: number; maliciousPps: number}>>([]);
+  const [trafficData, setTrafficData] = useState<
+    Array<{ time: number; normalPps: number; maliciousPps: number; simulatedPps?: number }>
+  >([]);
   const [blockedIPs, setBlockedIPs] = useState<any[]>([]);
   const [error, setError] = useState('');
 
@@ -69,121 +56,90 @@ export default function App() {
 
     socket.on('capture-stopped', () => setCapturing(false));
 
-    // Listen for new packets and detection results
     socket.on('new_packet', (pkt: any) => {
       setPackets(p => p + 1);
-      
-      // Calculate packets per second (simplified)
-      const curPps = Math.floor(Math.random() * 50) + 10; // More realistic PPS
-      setPps(curPps);
+      setPps(Math.floor(Math.random() * 50) + 10);
 
-      // Process packet data
-      const isMalicious = pkt.isMalicious || false;
-      const isSimulated = pkt.packet_data?.simulated || false;
+      const isMalicious = !!pkt.isMalicious;
+      const isSimulated = !!pkt.packet_data?.simulated;
       const timestamp = pkt.timestamp || Date.now();
-      const packetSize = pkt.packetSize || 1024; // Default size if not provided
-      const detectionReason = pkt.detectionReason || 
+      const packetSize = pkt.packetSize ?? 1024;
+      const detectionReason =
+        pkt.detectionReason ||
         (isSimulated ? 'Simulated DDoS Attack (locust)' : 'Suspicious activity');
-      
-      // Update live packets table
+
       const newPacket: Packet = {
         timestamp,
-        srcIP: pkt.srcIP || '0.0.0.0',
-        dstIP: pkt.dstIP || '0.0.0.0',
-        protocol: pkt.protocol || 'TCP',
+        srcIP: pkt.srcIP ?? '0.0.0.0',
+        dstIP: pkt.dstIP ?? '0.0.0.0',
+        protocol: pkt.protocol ?? 'TCP',
         packetSize,
-        network_slice: pkt.network_slice || 'eMBB',
+        network_slice: pkt.network_slice ?? 'eMBB',
         isMalicious,
         detectionReason,
         confidence: pkt.confidence,
-        packet_data: pkt.packet_data || {}
+        packet_data: pkt.packet_data ?? {},
       };
-      
-      setLivePackets(prev => [newPacket, ...prev.slice(0, 19)]); // Keep last 20 packets
-      
-      // Update traffic data for the graph
+
+      setLivePackets(prev => [newPacket, ...prev.slice(0, 19)]);
+
       setTrafficData(prev => {
-        const now = Math.floor(Date.now() / 1000); // Current time in seconds
-        const lastPoint = prev[prev.length - 1];
-        
-        // If we don't have data or it's been more than 1 second, add a new data point
-        if (!lastPoint || now > lastPoint.time) {
-          const newPoint = {
-            time: now,
-            normalPps: isMalicious ? 0 : 1,
-            maliciousPps: isMalicious ? 1 : 0,
-            simulatedPps: isMalicious && isSimulated ? 1 : 0
-          };
-          
-          console.log('📈 New data point:', newPoint);
-          return [...prev.slice(-29), newPoint]; // Keep last 30 seconds
+        const now = Math.floor(Date.now() / 1000);
+        const last = prev[prev.length - 1];
+
+        if (!last || now > last.time) {
+          return [
+            ...prev.slice(-29),
+            {
+              time: now,
+              normalPps: isMalicious ? 0 : 1,
+              maliciousPps: isMalicious ? 1 : 0,
+              simulatedPps: isMalicious && isSimulated ? 1 : 0,
+            },
+          ];
         }
-        
-        // Otherwise, update the last point
-        const updatedLastPoint = {
-          ...lastPoint,
-          normalPps: isMalicious ? lastPoint.normalPps : lastPoint.normalPps + 1,
-          maliciousPps: isMalicious ? lastPoint.maliciousPps + 1 : lastPoint.maliciousPps,
-          simulatedPps: isMalicious && isSimulated ? (lastPoint.simulatedPps || 0) + 1 : (lastPoint.simulatedPps || 0)
+
+        const updated = {
+          ...last,
+          normalPps: isMalicious ? last.normalPps : last.normalPps + 1,
+          maliciousPps: isMalicious ? last.maliciousPps + 1 : last.maliciousPps,
+          simulatedPps:
+            isMalicious && isSimulated
+              ? (last.simulatedPps ?? 0) + 1
+              : last.simulatedPps ?? 0,
         };
-        
-        return [...prev.slice(0, -1), updatedLastPoint];
+        return [...prev.slice(0, -1), updated];
       });
-      
-      // If malicious, add to blocked IPs (but only if not already blocked)
+
       if (isMalicious) {
-        console.log(`🚨 Malicious packet detected from ${pkt.srcIP}`, {
-          isSimulated,
-          reason: detectionReason,
-          confidence: pkt.confidence
-        });
-        
         setBlockedIPs(prev => {
-          // Check if IP is already in the blocked list
-          const isAlreadyBlocked = prev.some(ip => ip.ip === pkt.srcIP);
-          
-          if (!isAlreadyBlocked) {
-            const blockedIP = {
+          if (prev.some(i => i.ip === pkt.srcIP)) return prev;
+          return [
+            {
               ip: pkt.srcIP,
               timestamp: new Date().toISOString(),
               reason: detectionReason,
               threatLevel: isSimulated ? 'simulated' : 'high',
               mitigation: 'SDN DROP Rule',
               isSimulated,
-              confidence: pkt.confidence
-            };
-            
-            console.log('📝 Adding to blocked IPs:', blockedIP);
-            return [blockedIP, ...prev];
-          }
-          return prev;
+              confidence: pkt.confidence,
+            },
+            ...prev,
+          ];
         });
       }
     });
 
-    // 🧱 Blocked IP listeners
-    socket.on('initial_blocked_ips', (ips: any[]) => {
-      console.log("📥 Initial Blocked IPs:", ips);
-      setBlockedIPs(ips);
-    });
-
-    socket.on('update_blocked_ips', (ips: any[]) => {
-      console.log("🧱 Updated Blocked IP list:", ips);
-      setBlockedIPs(ips);
-    });
-
-    socket.on('ip_blocked', (ipData: any) => {
-      console.log("🚫 New IP blocked:", ipData);
-      setBlockedIPs(prev => {
-        if (prev.some(i => i.ip === ipData.ip)) return prev;
-        return [...prev, ipData];
-      });
-    });
-
-    socket.on('unblocked_ip', ({ ip }) => {
-      console.log(`♻️ Unblocked IP: ${ip}`);
-      setBlockedIPs(prev => prev.filter(b => b.ip !== ip));
-    });
+    socket.on('initial_blocked_ips', (ips: any[]) => setBlockedIPs(ips));
+    socket.on('update_blocked_ips', (ips: any[]) => setBlockedIPs(ips));
+    socket.on('ip_blocked', (ipData: any) =>
+      setBlockedIPs(prev =>
+        prev.some(i => i.ip === ipData.ip) ? prev : [...prev, ipData]
+      )
+    );
+    socket.on('unblocked_ip', ({ ip }) =>
+      setBlockedIPs(prev => prev.filter(b => b.ip !== ip))
+    );
 
     return () => {
       clearInterval(interval);
@@ -192,71 +148,23 @@ export default function App() {
   }, []);
 
   const toggleCapture = async () => {
-    if (capturing) {
-      await apiService.stopPacketCapture();
-    } else {
-      await apiService.startPacketCapture('192.168.56.1');
-    }
+    if (capturing) await apiService.stopPacketCapture();
+    else await apiService.startPacketCapture('192.168.56.1');
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-black to-gray-900 text-white p-8 font-sans">
       <div className="max-w-7xl mx-auto">
-        {/* Header with Connection Status */}
         <div className="flex justify-between items-center mb-8">
-          <h1 className="text-6xl font-extrabold text-purple-500">
-            SentinelAI
-          </h1>
-          <div
-            className={clsx(
-              "px-6 py-3 rounded-full flex items-center gap-2 text-lg font-bold shadow-lg transition-all border-2",
-              connected
-                ? "bg-green-500/20 text-green-400 border-green-500/70"
-                : "bg-red-500/20 text-red-400 border-red-500/70"
-            )}
-          >
-            {connected ? <Wifi className="w-6 h-6" /> : <WifiOff className="w-6 h-6" />}
-            <span className="hidden sm:inline">{connected ? 'LIVE' : 'OFFLINE'}</span>
-          </div>
+          <Header />
+          <ConnectionStatus connected={connected} error={error} />
         </div>
 
-        {error && (
-          <div className="mb-6 p-4 bg-red-900/50 border border-red-700 rounded-xl flex items-center gap-3 animate-pulse">
-            <AlertTriangle className="w-6 h-6" />
-            <span>{error}</span>
-          </div>
-        )}
-
-        {/* Stats + Control Button */}
         <div className="flex flex-col md:flex-row gap-6 mb-8 items-center">
-          {/* Stats */}
-          <div className="grid grid-cols-2 gap-6 flex-1">
-            <div className="bg-gray-900 p-6 rounded-2xl border border-gray-700 text-center shadow hover:shadow-cyan-500/40 transition">
-              <div className="text-4xl font-bold text-cyan-400 animate-count">{packets.toLocaleString()}</div>
-              <div className="text-gray-400 text-sm">Packets Captured</div>
-            </div>
-            <div className="bg-gray-900 p-6 rounded-2xl border border-gray-700 text-center shadow hover:shadow-green-500/40 transition">
-              <div className="text-4xl font-bold text-green-400 animate-count">{pps}</div>
-              <div className="text-gray-400 text-sm">Packets/sec</div>
-            </div>
-          </div>
-          
-          {/* Control Button */}
-          <button
-            onClick={toggleCapture}
-            className={clsx(
-              "px-8 py-4 md:py-6 rounded-2xl text-xl md:text-2xl font-extrabold transition-transform transform hover:scale-105 shadow-2xl flex items-center gap-2 h-fit",
-              capturing
-                ? "bg-red-600 hover:bg-red-700 text-white border-2 border-red-300"
-                : "bg-blue-600 hover:bg-blue-700 text-white border-2 border-blue-300"
-            )}
-          >
-            <Shield className="w-6 h-6 md:w-8 md:h-8" />
-            {capturing ? 'STOP CAPTURE' : 'START CAPTURE'}
-          </button>
+          <StatsPanel packets={packets} pps={pps} />
+          <ControlButton capturing={capturing} onToggle={toggleCapture} />
         </div>
 
-        {/* Live Packets Section */}
         <div className="mb-8">
           <div className="bg-gray-900 rounded-2xl p-6 border border-gray-800">
             <h3 className="text-xl font-bold mb-4">Live Packets</h3>
@@ -264,142 +172,18 @@ export default function App() {
           </div>
         </div>
 
-        {/* Live Traffic Section */}
         <div className="mb-8">
-          <div className="bg-gray-900 rounded-2xl p-6 border border-gray-800">
-            <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
-              <Activity className="text-cyan-400" />
-              Live Traffic
-            </h3>
-            <div className="h-96 relative">
-              <div className="absolute top-0 right-0 flex gap-4 mb-2 z-10">
-                <div className="flex items-center">
-                  <div className="w-3 h-3 rounded-full bg-cyan-400 mr-2"></div>
-                  <span className="text-xs text-gray-300">Normal</span>
-                </div>
-                <div className="flex items-center">
-                  <div className="w-3 h-3 rounded-full bg-red-500 mr-2"></div>
-                  <span className="text-xs text-gray-300">Malicious</span>
-                </div>
-              </div>
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart 
-                  data={trafficData}
-                  margin={{ top: 10, right: 20, left: 0, bottom: 0 }}
-                >
-                  <defs>
-                    <linearGradient id="normalGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#06b6d4" stopOpacity={0.6} />
-                      <stop offset="95%" stopColor="#06b6d4" stopOpacity={0.1} />
-                    </linearGradient>
-                    <linearGradient id="maliciousGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#ef4444" stopOpacity={0.6} />
-                      <stop offset="95%" stopColor="#ef4444" stopOpacity={0.1} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid 
-                    strokeDasharray="3 3" 
-                    stroke="#2d3748" 
-                    vertical={false} 
-                  />
-                  <XAxis 
-                    dataKey="time" 
-                    tick={{ fill: '#a0aec0', fontSize: 12 }}
-                    axisLine={{ stroke: '#2d3748' }}
-                    tickLine={{ stroke: '#2d3748' }}
-                    tickMargin={10}
-                  />
-                  <YAxis 
-                    tick={{ fill: '#a0aec0', fontSize: 12 }}
-                    axisLine={{ stroke: '#2d3748' }}
-                    tickLine={{ stroke: '#2d3748' }}
-                    tickMargin={10}
-                    label={{ 
-                      value: 'Packets/s', 
-                      angle: -90, 
-                      position: 'insideLeft',
-                      fill: '#a0aec0',
-                      style: { textAnchor: 'middle' },
-                      offset: 10
-                    }}
-                  />
-                  <Tooltip 
-                    content={({ active, payload, label }) => {
-                      if (!active || !payload || !payload.length) return null;
-                      
-                      return (
-                        <div className="bg-gray-800 p-3 border border-gray-700 rounded-lg shadow-xl">
-                          <p className="text-gray-400 text-sm mb-1">
-                            Time: {label}
-                          </p>
-                          {payload.map((entry, index) => (
-                            <div key={`tooltip-${index}`} className="flex items-center">
-                              <div 
-                                className="w-2 h-2 rounded-full mr-2" 
-                                style={{ 
-                                  backgroundColor: entry.color || '#000',
-                                }}
-                              />
-                              <span className="text-sm">
-                                {entry.name}: <span className="font-bold">{entry.value}</span>
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      );
-                    }}
-                    cursor={{ stroke: '#4a5568', strokeWidth: 1 }}
-                  />
-                  <Area 
-                    type="monotone" 
-                    dataKey="normalPps" 
-                    name="Normal Traffic"
-                    stroke="#06b6d4"
-                    fill="url(#normalGrad)" 
-                    strokeWidth={2}
-                    dot={false}
-                    activeDot={{ r: 4, strokeWidth: 2, fill: '#06b6d4' }}
-                    isAnimationActive={true}
-                    animationDuration={1000}
-                    animationEasing="ease-out"
-                  />
-                  <Area 
-                    type="monotone" 
-                    dataKey="maliciousPps" 
-                    name="Malicious Traffic"
-                    stroke="#ef4444"
-                    fill={trafficData.some(d => d.maliciousPps > 0) ? "url(#maliciousGrad)" : 'none'}
-                    strokeWidth={2}
-                    dot={false}
-                    activeDot={{ r: 4, strokeWidth: 2, fill: '#ef4444' }}
-                    isAnimationActive={true}
-                    animationDuration={1000}
-                    animationEasing="ease-out"
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
+          <TrafficChart data={trafficData} />
         </div>
 
-        {/* Blocked IPs */}
         <div className="mb-8">
           <BlockedIPs blockedIPs={blockedIPs} />
         </div>
 
-        {/* Footer */}
-        <div className="text-center text-gray-500 text-sm mt-10">
-          <p>Real-time DDoS Detection • Ryu SDN Mitigation • AI-Powered</p>
-          <p className="mt-2">{connected ? 'All systems operational' : 'Waiting for backend...'}</p>
-        </div>
+        <Footer connected={connected} />
       </div>
 
       <style>{`
-        .drop-shadow-neon { text-shadow: 0 0 12px #a78bfa, 0 0 24px #06b6d4 }
-        .neon-red { box-shadow: 0 0 12px #f43f5e, 0 0 28px #f43f5e44; }
-        .neon-blue { box-shadow: 0 0 12px #06b6d4, 0 0 28px #06b6d444; }
-        .glow-green { box-shadow: 0 0 8px #22d3ee99, 0 0 18px #22d3ee33; }
-        .glow-red { box-shadow: 0 0 8px #f87171aa, 0 0 18px #f43f5e33; }
         .animate-count { transition: all 0.4s cubic-bezier(0.17,0.67,0.83,0.67); }
       `}</style>
     </div>

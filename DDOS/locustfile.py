@@ -1,21 +1,15 @@
-# locustfile.py  (safe simulated DDoS with X-Forwarded-For random IPs + Sentinel /simulate-packet)
+# locustfile.py — send packets directly to Sentinel /simulate-packet
 from locust import HttpUser, task, between
 import random
-import string
-import uuid
 import time
+import uuid
 
-# TARGET_BACKEND should point to your Node backend (website / API)
-TARGET_BACKEND = "http://127.0.0.1:3000"  # or "http://192.168.0.100:3000"
+# Change this if Sentinel is on a different host/port
+SENTINEL_BACKEND = "http://127.0.0.1:5001"  # your Flask app (app.py)
 
-# SENTINEL_BACKEND should point to your Flask/Scapy ML app (app.py)
-SENTINEL_BACKEND = "http://127.0.0.1:5001"  # change if Sentinel runs elsewhere
-
-def rand_str(n=8):
-    return "".join(random.choices(string.ascii_lowercase + string.digits, k=n))
 
 def rand_ip():
-    # generate nice demo IPv4 addresses (avoid reserved ranges)
+    """Generate a fake IPv4 address."""
     return "{}.{}.{}.{}".format(
         random.randint(11, 223),
         random.randint(1, 254),
@@ -23,78 +17,68 @@ def rand_ip():
         random.randint(1, 254),
     )
 
-class Attacker(HttpUser):
-    # This host is used for your main Node backend (site / API load).
-    host = TARGET_BACKEND
-    wait_time = between(0.01, 0.12)   # aggressive for demo
 
-    @property
-    def attack_headers(self):
-        # Headers used when hitting the Node backend.
-        return {
-            "User-Agent": f"LocustAttacker/{uuid.uuid4().hex[:6]}",
-            "X-Simulated-Attack": "true",   # <--- lets Node know this is simulated
-            "X-Forwarded-For": rand_ip(),   # <--- fake client IP for logs/analysis
-        }
+class SentinelAttacker(HttpUser):
+    """
+    This Locust user sends many synthetic packets directly to
+    Sentinel's /simulate-packet endpoint.
 
-    @task(7)
-    def many_gets(self):
-        """
-        Simulate many GET requests to your Node backend (web/API paths).
-        """
-        path = random.choice(
-            ["/", "/login", "/api/v1/resource", "/heavy", "/static/img.png", "/api/health"]
-        )
-        self.client.get(
-            path,
-            headers=self.attack_headers,
-            name="GET " + path,
-            timeout=10,
-        )
+    Sentinel will:
+      - update rate_tracker for that srcIP
+      - run is_ddos_attack_for_ip(...)
+      - if attack → call block_ip() → Ryu flow
+      - notify Node backend (blocked IP + live packets)
+    """
 
-    @task(3)
-    def many_posts(self):
-        """
-        Simulate many POST requests to your Node backend.
-        """
-        payload = {"name": rand_str(6), "value": random.randint(1, 100)}
-        path = random.choice(["/api/v1/submit", "/api/v1/update", "/api/v1/upload"])
-        self.client.post(
-            path,
-            json=payload,
-            headers=self.attack_headers,
-            name="POST " + path,
-            timeout=10,
-        )
+    host = SENTINEL_BACKEND
+    wait_time = between(0.01, 0.05)  # aggressive for demo
 
-    @task(10)
-    def simulated_ddos_to_sentinel(self):
-        """
-        Send high-rate synthetic packets to Sentinel's /simulate-packet endpoint.
-        These packets are marked as simulated, so Sentinel will ALWAYS classify
-        them as malicious and report them to the Node backend.
-        """
-        src_ip = rand_ip()
+    def on_start(self):
+        # Use a fixed attack IP per Locust user so PPS builds up
+        self.attack_ip = rand_ip()
+
+    def build_payload(self, src_ip: str) -> dict:
         now_ms = int(time.time() * 1000)
-
-        payload = {
-            "srcIP": src_ip,            # visible in Sentinel + frontend tables
-            "dstIP": "127.0.0.1",       # or the protected service IP
+        return {
+            "srcIP": src_ip,          # Sentinel uses this for rate + blocking
+            "dstIP": "127.0.0.1",     # or protected service IP
             "protocol": "TCP",
-            "packetSize": random.randint(400, 900),
+            "packetSize": random.randint(500, 900),
             "timestamp": now_ms,
-            "simulated": True,          # body flag for Sentinel / Node pipelines
+            "network_slice": "eMBB",
+            # NOTE: your current /simulate-packet ignores this field,
+            # but you can wire it in later if you want ML vs simulated.
+            "simulated": True,
         }
 
-        headers = {
+    def build_headers(self, src_ip: str) -> dict:
+        return {
             "User-Agent": f"LocustSentinel/{uuid.uuid4().hex[:6]}",
-            "X-Simulated-Attack": "true",  # Sentinel reads this as simulated
-            "X-Forwarded-For": src_ip,     # same as srcIP for consistency
+            "X-Forwarded-For": src_ip,  # for logs / consistency
         }
 
-        # Use an absolute URL so this call goes to Sentinel, not Node.
+    @task
+    def send_attack_packets(self):
+        """
+        High-rate synthetic packets from a single srcIP.
+        In your Sentinel code:
+
+          - /simulate-packet reads srcIP, packetSize, timestamp
+          - rate_tracker.add(src_ip, ts) -> PPS calculation
+          - is_ddos_attack_for_ip(..., simulated=True) -> always True
+          - block_ip(src_ip) -> Ryu DROP rule
+          - POST to Node_URL -> frontend gets blocked attacker
+
+        So running this will continuously:
+          - block that IP in Ryu
+          - show it in your frontend tables as malicious.
+        """
+        src_ip = self.attack_ip
+        payload = self.build_payload(src_ip)
+        headers = self.build_headers(src_ip)
+
         self.client.post(
-            f"{SENTINEL_BACKEND}/simulate-packet",
+            "/simulate-packet",
             json=payload,
             headers=headers,
             name="SENTINEL /simulate-packet",
