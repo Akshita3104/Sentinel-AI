@@ -130,15 +130,14 @@ graph TD
     C --> D[Model Inference]
     D --> E{Normal Traffic?}
     E -->|Yes| F[Allow Traffic]
-    E -->|No| G[Generate Mitigation Rules]
-    G --> H[Update SDN Rules]
+    E -->|No| G[Send to SDN Controller via Mininet]
 ```
 
 ### Key ML Components
 - **Feature Extraction**: Network flow characteristics
 - **Anomaly Detection**: Identifies suspicious patterns
-- **Classification**: Categorizes attack types
-- **Decision Making**: Determines appropriate responses
+- **Classification**: Categorizes traffic as normal or malicious
+- **Mitigation Trigger**: Sends malicious traffic to SDN Controller via Mininet for mitigation
 
 ## 🧩 Key Features
 
@@ -327,44 +326,6 @@ sequenceDiagram
 
 
 Everything works in a continuous real-time feedback loop.
-
-## � Development Commands
-
-### Backend Setup
-```bash
-# Navigate to backend directory
-cd backend
-
-# Install dependencies
-npm install
-
-# Start development server
-nodemon index.js
-```
-
-### Frontend Setup
-```bash
-# Navigate to frontend directory
-cd frontend
-
-# Install dependencies
-npm install
-
-# Start development server
-npm run dev
-```
-
-### ML Model Setup
-```bash
-# Navigate to model directory
-cd model
-
-# Install Python dependencies
-pip install -r requirements.txt
-
-# Start the ML API
-python app/app.py
-```
 
 ## 🚨 Troubleshooting
 
