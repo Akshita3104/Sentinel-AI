@@ -1,189 +1,240 @@
-# Sentinel AI - AI-Driven DDoS Detection System for 5G Networks
+Sentinel AI – SDN Powered AI-Based DDoS Detection & Mitigation System
 
-An advanced, real-time system designed for intelligent DDoS detection and mitigation in 5G networks, integrating machine learning, SDN (Software Defined Networking), and slice-specific network management. Sentinel AI autonomously detects threats, manages network slices, and recovers from attacks, providing a robust platform for both research and production scenarios.
+A complete end-to-end platform for real-time DDoS detection, SDN-based mitigation, and live traffic visualization, integrating:
 
----
+React (Frontend Dashboard)
 
-## Features
+Node.js (Backend Layer + WebSockets)
 
-- **Simulated & Real-Time Network Monitoring**: Analyzes both live and simulated traffic for anomaly detection.
-- **AI-Powered Detection**: Utilizes machine learning (Random Forest ensemble) for DDoS detection.
-- **5G Network Slice Management**: Supports management for eMBB, URLLC, and mMTC slices.
-- **Autonomous Mitigation**: Self-healing and automated threat response for minimal downtime.
-- **Web Dashboard**: Interactive, real-time charts and alerts for monitoring.
-- **API Integration**: Integrates with AbuseIPDB for external IP reputation checks.
-- **SDN-Enabled**: Dynamic network flow control using SDN principles.
-- **Self-Healing Framework**: Isolates attacks and recovers services automatically.
-- **Highly Portable**: Works in simulation or with real packet data (Wireshark/tshark).
+Python Flask (ML Detection API + SDN Controller Integration)
 
----
+Ryu Controller + Mininet (SDN Emulation)
 
-## Directory Structure
+Locust Load Testing (DDoS Simulation)
 
-```
+Sentinel AI is designed for 5G and SDN-enabled networks, supporting real-time analytics, anomaly detection, auto-mitigation, and network slicing.
+
+📁 Project Folder Structure
 Ly-Project/
 │
-├── backend/            
+├── backend/
 │   ├── controllers/
-│   ├── models/
+│   ├── middleware/
 │   ├── routes/
-│   ├── utils/
-│   ├── config/
-│   ├── services/
+│   ├── socket/
 │   ├── tests/
-│   └── index.js
+│   ├── utils/
+│   ├── .env
+│   ├── index.js
+│   └── package.json
 │
-├── frontend/                
+├── frontend/
+│   ├── node_modules/
+│   ├── public/
 │   ├── src/
 │   │   ├── components/
 │   │   ├── pages/
+│   │   ├── api/
 │   │   ├── hooks/
-│   │   ├── assets/
 │   │   ├── utils/
-│   │   ├── api/
-│   │   └── App.jsx/tsx
-│   ├── public/
-│   └── vite.config.js
+│   │   └── App.jsx / App.tsx
+│   ├── tailwind.config.js
+│   ├── vite.config.ts
+│   └── package.json
 │
-├── model/                  
+├── model/
 │   ├── app/
-│   │   ├── ml/
-│   │   ├── api/
-│   │   ├── utils/
-│   │   └── app.py
-│   ├── tests/
+│   │   ├── app.py
+│   │   ├── feature_extraction.py
+│   │   ├── flow_capture.py
+│   │   ├── mitigation_engine.py
+│   │   ├── ml_detection.py
+│   │   ├── network_slicing.py
+│   │   ├── performance_cache.py
+│   │   ├── sdn_controller.py
+│   │   └── test/
+│   ├── models/
+│   ├── README.md
 │   └── requirements.txt
 │
-├── .gitignore
-├── README.md
-├── LICENSE
-```
+└── Testing/
+    ├── locustfile.py
+    └── __pycache__/
 
----
+⚙️ System Architecture Overview
+┌──────────┐       ┌────────────┐       ┌─────────────┐       ┌─────────────┐
+│ Mininet  │ ───▶  │ Ryu SDN    │ ───▶  │ Flask ML     │ ───▶  │ Node Backend │ ───▶ React UI
+└──────────┘       │ Controller │       │ API + SDN     │       │ (Socket.IO)  │
+                   └────────────┘       │ Controls      │       └─────────────┘
+                                          └─────────────┘
 
-## Technologies Used
+Flow Explanation
 
-- **Frontend**: React, Vite, JavaScript/TypeScript, Live charting libraries
-- **Backend**: Node.js, Express, REST API, Axios
-- **AI Model**: Python (Flask, scikit-learn, pandas, numpy, joblib)
-- **SDN Simulation**: Custom scripts for dynamic routing and mitigation
-- **Integration**: AbuseIPDB (threat intelligence)
-- **Packet Capture**: Wireshark/tshark (optional, simulated by default)
-- **DevOps**: Git, npm, pip
+Traffic packets generated inside Mininet topology
 
----
+Ryu controller pushes flow stats to Flask API
 
-## Prerequisites
+ML Model analyses & detects anomalies
 
-- **Node.js** v16+ ([Download](https://nodejs.org/))
-- **Python** v3.8+ ([Download](https://www.python.org/))
-- **Git** ([Download](https://git-scm.com/))
-- **Wireshark** (optional, for real packet capture) ([Download](https://www.wireshark.org/))
+If attack detected → mitigation engine triggers SDN rules
 
-**Verify your installs:**
-```bash
-node --version
-python --version
-git --version
-# Optional: tshark --version (after installing Wireshark)
-```
+Node backend receives updates via Python API
 
----
+Frontend dashboard updates in real-time via WebSockets
 
-## Installation & Setup
+🧩 Key Features
+🔍 AI-Powered DDoS Detection
 
-### 1. Clone the Repository
+Machine Learning classifier (Random Forest / Sklearn)
 
-```bash
-git clone https://github.com/Akshita3104/Ly-Project.git
+Real-time feature extraction
+
+Flow-based detection
+
+📡 SDN-Controlled Mitigation
+
+Ryu + OpenFlow 1.3
+
+Dynamic blocking of malicious IPs
+
+Flow-table manipulation
+
+📊 Live Dashboard
+
+Traffic charts
+
+Threat alerts
+
+Flow table logs
+
+Slice-specific data (eMBB, URLLC, mMTC)
+
+🔥 DDoS Simulation
+
+Locust traffic generator
+
+Custom attack scenarios
+
+🧪 Full Integration Pipeline
+
+Frontend → Backend → Model → SDN → Nodes
+
+Fully automated loop
+
+🚀 Installation
+1️⃣ Clone Repository
+git clone <your-repository-url>
 cd Ly-Project
-```
 
-### 2. Install Dependencies
+🖥 Running the Entire Workflow (5-Terminal Setup)
 
-```bash
-# Backend
+This is the correct & final execution order.
+
+▶ Terminal 1 — Start Ryu SDN Controller
+
+Inside Mininet VM:
+
+ssh mininet@192.168.56.101
+ryu-manager ryu.app.simple_switch_13 ryu.app.ofctl_rest
+
+▶ Terminal 2 — Start Mininet Topology
+ssh mininet@192.168.56.101
+
+sudo mn --topo single,3 --mac --switch ovsk \
+--controller=remote,ip=127.0.0.1,port=6633
+
+
+Test connectivity:
+
+pingall
+
+▶ Terminal 3 — Start Python ML Detection API
+
+On your host machine:
+
+cd model/app
+python app.py
+
+
+This runs at:
+
+http://127.0.0.1:5001
+
+▶ Terminal 4 — Start Node Backend
+cd backend
+nodemon index.js
+
+
+Runs at:
+
+http://localhost:3000
+
+▶ Terminal 5 — Start React Frontend Dashboard
+cd frontend
+npm run dev
+
+
+Open browser:
+
+http://localhost:5173
+
+💣 Simulating a DDoS Attack (Optional)
+cd Testing
+locust -f locustfile.py
+
+
+Open Locust UI:
+
+http://localhost:8089
+
+
+Enter:
+
+Number of users
+
+Spawn rate
+
+Target host (backend API)
+
+Start attack → watch real-time detection in dashboard 🎯
+
+🔍 Optional: Check SDN Switch Flow Table
+curl http://127.0.0.1:8080/stats/flow/1
+
+🧠 Internal Workflow (Detailed)
+1. Mininet sends traffic → Ryu controller  
+2. Ryu exposes OpenFlow stats → Flask API  
+3. Flask extracts features → ML model predicts attack  
+4. If attack:
+       - mitigation_engine.py triggers SDN rules
+5. Flask notifies Node backend
+6. Backend pushes live alerts → Frontend (Socket.IO)
+7. Dashboard updates traffic charts + alerts
+
+
+Everything works in a continuous real-time feedback loop.
+
+👨‍💻 Development Commands
+Backend
 cd backend
 npm install
+nodemon index.js
 
-# Frontend (in new terminal)
-cd ../frontend
+Frontend
+cd frontend
 npm install
+npm run dev
 
-# Python ML Model (in another terminal)
-cd ../model
+Model
+cd model
 pip install -r requirements.txt
-```
+python app/app.py
 
-### 3. Run the System
+🧪 Troubleshooting
+Clean Mininet
+sudo mn -c
 
-**Open 3 terminals:**
-
-- **Terminal 1 (ML Model - Port 5001)**
-  ```bash
-  cd model/app
-  python app.py
-  ```
-
-- **Terminal 2 (Backend API - Port 3000)**
-  ```bash
-  cd backend
-  npm start
-  ```
-
-- **Terminal 3 (Frontend Dashboard - Port 5173)**
-  ```bash
-  cd frontend
-  npm run dev
-  ```
-
-### 4. Open the Dashboard
-
-Go to [http://localhost:5173](http://localhost:5173) in your browser.
-
----
-
-## Usage
-
-### Real Packet Capture (Recommended)
-- Install Wireshark with npcap driver and run as administrator.
-- The app will attempt live capture; fallback to simulation if disabled/missing.
-
-### Simulation Mode (Fallback)
-- The dashboard allows traffic simulation and manual entry for DDoS analysis without system-level capture.
-
-### Features Overview
-
-- **Live Capture**: Ethernet/Wi-Fi interfaces only;
-- **Simulation**: Traffic and attack scenarios for research;
-- **Detection**: View charts, alerts, and attack details in real-time;
-- **Self-Healing**: Automatic or manual mitigation actions;
-
----
-
-## System Architecture
-
-1. **Network Traffic** → Real (Wireshark) or simulated streams
-2. **Feature Extraction** → ML-ready traffic features
-3. **ML Model** → Random Forest, Min-Max scaling, ensemble methods
-4. **API Backend** → Node.js REST mediating traffic/data
-5. **Dashboard** → React UI for analytics, control, and status
-
-**Supported Slices:**
-- eMBB (Enhanced Mobile Broadband)
-- URLLC (Ultra-Reliable Low-Latency Communication)
-- mMTC (Massive Machine Type Communication)
-
----
-
-## Contributing
-
-This project is actively developed as part of cybersecurity research. Contributions, issues, and suggestions are welcome! Please review the research documentation or connect with maintainers for more information.
-
----
-
-## License
-
-This project is for academic and research use. Refer to the LICENSE file for terms.
-
----
+Kill blocked ports
+sudo fuser -k 6633/tcp
+sudo fuser -k 8080/tcp
+sudo fuser -k 5001/tcp
