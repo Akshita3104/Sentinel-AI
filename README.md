@@ -63,93 +63,64 @@ Sentinel-AI/
 ## ⚙️ System Architecture
 
 ```mermaid
-flowchart TD
-    %% Main Components
-    subgraph Frontend["🖥️ Frontend (React)"]
-        UI[Dashboard] <-->|WebSocket| BE
-        UI -->|User Interaction| UI
-    end
-
-    subgraph Backend["⚙️ Backend (Node.js)"]
-        BE[API Server] <-->|REST| ML
-        BE -->|WebSocket| UI
-    end
-
-    subgraph ML_Service["🧠 ML Service (Flask)"]
-        ML[ML API] <-->|Process| DB[(Model Data)]
-        ML -->|Analyze| Stats[Traffic Stats]
-    end
-
-    subgraph SDN["🌐 SDN Network"]
-        Ryu[Ryu Controller] <-->|OpenFlow| ML
-        Ryu <-->|Flow Rules| Mininet[Mininet]
-    end
-
-    %% Data Flow
-    Mininet -->|1. Traffic| Ryu
-    Ryu -->|2. Flow Stats| ML
-    ML -->|3. Analysis| BE
-    BE -->|4. Updates| UI
-    ML -->|5. Mitigation| Ryu
-    Ryu -->|6. Apply Rules| Mininet
+flowchart LR
+    UI["React Dashboard"] -- WebSocket --> BE["Node.js Backend"]
+    BE -- REST API --> ML["ML Service (Flask)"]
+    Mininet["Mininet Network"] -- Traffic --> ML
+    ML -- Analysis Result --> BE
+    BE -- Updates --> UI
+    ML -- Malicious Traffic Detected --> Ryu["Ryu Controller"]
+    Ryu -- Flow Rules --> Mininet
 
     %% Styling
     classDef frontend fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
-    classDef backend fill:#e8f5e9,stroke#2e7d32,stroke-width:2px
-    classDef ml fill#fff3e0,stroke#ef6c00,stroke-width:2px
-    classDef sdn fill#f3e5f5,stroke#7b1fa2,stroke-width:2px
-    
-    class UI,Frontend frontend
-    class BE,Backend backend
-    class ML,ML_Service ml
-    class Ryu,Mininet,SDN sdn
-    linkStyle 5,6,7,8,9,10 stroke:#d32f2f,stroke-width:2px
+    classDef backend fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
+    classDef ml fill:#fff3e0,stroke:#ef6c00,stroke-width:2px
+    classDef sdn fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    class UI frontend
+    class BE backend
+    class ML ml
+    class Ryu,Mininet sdn
 ```
 
 ### Component Interactions
 
-1. **Frontend Layer**
-   - Real-time dashboard with traffic visualization
-   - Interactive controls for network management
-   - Alert and notification system
+1. **Frontend (React Dashboard)**
+   - Visualizes real-time traffic and alerts
+   - Allows user interaction and monitoring
 
-2. **Backend Services**
-   - Handles API requests and WebSocket connections
-   - Manages data flow between components
-   - Processes and forwards ML analysis results
+2. **Backend (Node.js)**
+   - Handles API requests and WebSocket updates
+   - Aggregates and forwards analysis results
 
-3. **Machine Learning Service**
-   - Processes network traffic data
-   - Implements DDoS detection algorithms
-   - Generates mitigation rules
-   - Maintains model performance metrics
+3. **ML Service (Flask)**
+   - Receives flow stats from Ryu
+   - Analyzes traffic for anomalies
+   - Only if malicious traffic is detected, sends mitigation signal to Ryu
 
-4. **SDN Infrastructure**
-   - Ryu controller for network management
-   - Mininet for network emulation
-   - Dynamic flow rule management
+4. **Ryu Controller (SDN)**
+   - Receives mitigation instructions from ML
+   - Installs flow rules in Mininet to block/mitigate malicious traffic
+   - Collects flow stats and manages network
+
+5. **Mininet Network**
+   - Emulates the SDN environment
+   - Forwards traffic and applies flow rules
 
 ### Data Flow Sequence
 
-1. **Traffic Monitoring**
-   - Mininet generates and forwards traffic
-   - Ryu controller collects flow statistics
-   - Stats are sent to ML service for analysis
+1. **Normal Traffic Flow**
+   - Mininet forwards all network traffic directly to the ML Service (Flask).
+   - ML Service analyzes the traffic in real-time.
+   - If traffic is normal, results are sent to the Backend, which updates the Frontend dashboard.
 
-2. **Threat Analysis**
-   - ML model processes traffic patterns
-   - Detects anomalies and potential attacks
-   - Generates appropriate mitigation strategies
+2. **DDoS Detection & Mitigation**
+   - If and only if the ML Service detects malicious traffic:
+     - ML sends a mitigation instruction to the Ryu Controller.
+     - Ryu installs blocking rules in Mininet to mitigate the attack.
+     - Malicious traffic is blocked at the network level.
+   - The Backend and Frontend are updated with mitigation status.
 
-3. **Response & Mitigation**
-   - Blocking rules are sent to Ryu
-   - Flow tables are updated in real-time
-   - Malicious traffic is filtered
-
-4. **Visualization & Feedback**
-   - Updates are pushed to the frontend
-   - Administrators monitor system status
-   - Manual intervention when necessary
 
 ## 🧠 Machine Learning Pipeline
 
