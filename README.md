@@ -60,8 +60,14 @@ Sentinel-AI/
     └── __pycache__/
 ```
 
-## ⚙️ System Architecture
+# Sentinel-AI: Intelligent DDoS Detection & Mitigation Platform
 
+## 1. Overview
+A real-time, AI-powered SDN security platform for DDoS detection and mitigation using ML and programmable networking.
+
+## 2. System Architecture
+
+### 2.1 Architecture Diagram
 ```mermaid
 flowchart LR
     UI["React Dashboard"] -- Request Traffic Capture --> BE["Node.js Backend"]
@@ -77,8 +83,7 @@ flowchart LR
     BE -- Respond to Frontend --> UI
 ```
 
-### Component Interactions
-
+### 2.2 Component Interactions
 1. **Frontend (React Dashboard)**
    - Sends request to start traffic capture to backend
    - Receives and displays detection and mitigation results
@@ -107,9 +112,7 @@ flowchart LR
    - Emulates SDN environment
    - Applies flow rules to block malicious traffic
 
-### Data Flow Sequence
-
-1. **Traffic Capture and Detection**
+### 2.3 Data workflow
    - Frontend sends a request for traffic capture to the backend.
    - Backend forwards the request to the ML Service.
    - ML Service captures traffic using scapy/tshark and analyzes it.
@@ -122,9 +125,7 @@ flowchart LR
      - ML Service forwards the mitigation response to backend.
      - Backend responds to frontend with mitigation status/result.
 
-
-## 🧠 Machine Learning Pipeline
-
+### 2.4 Machine Learning Pipeline
 ```mermaid
 graph TD
     A[Capture Traffic (scapy/tshark)] --> B[Feature Extraction]
@@ -144,7 +145,71 @@ graph TD
 - **Classification**: Categorizes traffic as normal or malicious
 - **Mitigation Handling**: Forwards malicious traffic to SDN Controller via Mininet, receives mitigation response, and forwards result to backend
 
-## 🧩 Key Features
+## 3. Key Features
+- Real-time DDoS detection & mitigation
+- AI-driven traffic analysis
+- SDN-based programmable defense
+- Live dashboard & alerts
+- End-to-end automation
+- Feedback loop & scalable design
+
+## 4. Simulation & Testing
+### 4.1 DDoS Simulation
+- Locust-based traffic generator
+- Custom attack scenarios
+- Real-time impact analysis
+
+
+## 5. Installation & Setup
+### 5.1 Clone Repository
+```bash
+git clone <https://github.com/Akshita3104/Sentinel-AI.git>
+cd Sentinel-AI
+```
+### 5.2 Terminal Setup Overview
+```mermaid
+graph TD
+    A[Terminal 1: Ryu Controller] --> B[Terminal 2: Mininet]
+    B --> C[Terminal 3: ML API]
+    C --> D[Terminal 4: Node Backend]
+    D --> E[Terminal 5: React Frontend]
+```
+#### Terminal 1 — Start Ryu SDN Controller
+```bash
+# Example command
+```
+#### Terminal 2 — Start Mininet
+```bash
+# Example command
+```
+#### Terminal 3 — Start ML API
+```bash
+# Example command
+```
+#### Terminal 4 — Start Backend
+```bash
+# Example command
+```
+#### Terminal 5 — Start React Dashboard
+```bash
+cd frontend
+npm install
+npm run dev
+```
+Dashboard: [http://localhost:5173](http://localhost:5173)
+
+## 6. Troubleshooting
+### Clean Mininet Environment
+```bash
+sudo mn -c
+```
+
+### Kill Blocked Ports
+```bash
+sudo fuser -k 6633/tcp
+sudo fuser -k 8080/tcp
+sudo fuser -k 5001/tcp
+```
 
 ### 🔍 AI-Powered DDoS Detection
 ```mermaid
@@ -176,45 +241,21 @@ pie
 
 ### 🧪 Full Integration Pipeline
 ```mermaid
-graph LR
-    UI[Frontend] -- Request Capture --> BE[Backend]
-    BE -- Forward Request --> ML[ML Model]
+flowchart LR
+    UI["Frontend"] -- Request Capture --> BE["Backend"]
+    BE -- Forward Request --> ML["ML Model"]
     ML -- Capture & Analyze --> ML
-    ML -- Normal Traffic --> BE
-    BE -- Response --> UI
-    ML -- Malicious Traffic --> SDN[SDN Controller]
-    SDN -- Block & Respond --> ML
+    ML -- Normal --> BE
+    BE -- Result --> UI
+    ML -- Malicious --> SDN["SDN Controller"]
+    SDN -- Block/Respond --> ML
     ML -- Mitigation Result --> BE
-    BE -- Response --> UI
+    BE -- Result --> UI
 ```
 - End-to-end automation
 - Real-time feedback loop
-
-### 🛡️ Attack Workflow
-```mermaid
-graph TD
-    F[Frontend] --> B[Backend]
-    B --> M[ML Model]
-    M -- Normal --> B
-    B -- Inform --> F
-    M -- Malicious --> S[SDN Controller]
-    S -- Blocked/Status --> M
-    M --> B
-    B --> F
-```
-- Frontend initiates capture
-- ML analyzes and classifies
-- Backend relays all results
-- SDN controller only involved if attack is detected
-- All results/mitigation statuses return to frontend
 - Scalable architecture
 
-## 🚀 Installation
-
-### 1️⃣ Clone Repository
-```bash
-git clone <https://github.com/Akshita3104/Sentinel-AI.git>
-cd Sentinel-AI
 ```
 
 ## 🖥 Running the Entire Workflow (5-Terminal Setup)
