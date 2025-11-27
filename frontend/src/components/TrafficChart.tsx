@@ -11,7 +11,7 @@ import {
 import { Activity } from 'lucide-react';
 
 interface DataPoint {
-  time: number;
+  time: number;          // timestamp from backend (ms or sec)
   normalPps: number;
   maliciousPps: number;
   simulatedPps?: number;
@@ -20,6 +20,26 @@ interface DataPoint {
 interface Props {
   data: DataPoint[];
 }
+
+// === IST TIME FORMATTER (same logic as LivePacketTable) ===
+const formatISTTime = (timestamp: number) => {
+  if (timestamp === undefined || timestamp === null) return '';
+
+  // Backend usually sends ms (int(ts * 1000)).
+  // Be defensive: if it's too small, treat it as seconds.
+  const millis = timestamp < 1e12 ? timestamp * 1000 : timestamp;
+  const date = new Date(millis);
+
+  if (isNaN(date.getTime())) return '';
+
+  return date.toLocaleTimeString('en-IN', {
+    timeZone: 'Asia/Kolkata',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true,
+  });
+};
 
 export default function TrafficChart({ data }: Props) {
   const hasMalicious = data.some((d) => d.maliciousPps > 0);
@@ -31,10 +51,12 @@ export default function TrafficChart({ data }: Props) {
         Live Traffic
       </h3>
 
-     
       <div className="h-96">
         <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={data} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
+          <AreaChart
+            data={data}
+            margin={{ top: 10, right: 20, left: 0, bottom: 0 }}
+          >
             <defs>
               <linearGradient id="normalGrad" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="#06b6d4" stopOpacity={0.6} />
@@ -46,14 +68,21 @@ export default function TrafficChart({ data }: Props) {
               </linearGradient>
             </defs>
 
-            <CartesianGrid strokeDasharray="3 3" stroke="#2d3748" vertical={false} />
+            <CartesianGrid
+              strokeDasharray="3 3"
+              stroke="#2d3748"
+              vertical={false}
+            />
+
             <XAxis
               dataKey="time"
+              tickFormatter={formatISTTime}
               tick={{ fill: '#a0aec0', fontSize: 12 }}
               axisLine={{ stroke: '#2d3748' }}
               tickLine={{ stroke: '#2d3748' }}
               tickMargin={10}
             />
+
             <YAxis
               tick={{ fill: '#a0aec0', fontSize: 12 }}
               axisLine={{ stroke: '#2d3748' }}
@@ -68,12 +97,20 @@ export default function TrafficChart({ data }: Props) {
                 offset: 10,
               }}
             />
+
             <Tooltip
+              cursor={{ stroke: '#4a5568', strokeWidth: 1 }}
               content={({ active, payload, label }) => {
                 if (!active || !payload?.length) return null;
+
+                const timeLabel =
+                  typeof label === 'number' ? formatISTTime(label) : label;
+
                 return (
                   <div className="bg-gray-800 p-3 border border-gray-700 rounded-lg shadow-xl">
-                    <p className="text-gray-400 text-sm mb-1">Time: {label}</p>
+                    <p className="text-gray-400 text-sm mb-1">
+                      Time (IST): {timeLabel}
+                    </p>
                     {payload.map((entry, i) => (
                       <div key={i} className="flex items-center">
                         <div
@@ -81,15 +118,16 @@ export default function TrafficChart({ data }: Props) {
                           style={{ backgroundColor: entry.color ?? '#000' }}
                         />
                         <span className="text-sm">
-                          {entry.name}: <span className="font-bold">{entry.value}</span>
+                          {entry.name}:{" "}
+                          <span className="font-bold">{entry.value}</span>
                         </span>
                       </div>
                     ))}
                   </div>
                 );
               }}
-              cursor={{ stroke: '#4a5568', strokeWidth: 1 }}
             />
+
             <Area
               type="monotone"
               dataKey="normalPps"
@@ -103,6 +141,7 @@ export default function TrafficChart({ data }: Props) {
               animationDuration={1000}
               animationEasing="ease-out"
             />
+
             <Area
               type="monotone"
               dataKey="maliciousPps"

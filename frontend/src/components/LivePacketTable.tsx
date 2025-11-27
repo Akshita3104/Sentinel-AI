@@ -1,5 +1,5 @@
 import React from 'react';
-import { Packet } from '../types'; // Use your types/index.ts
+import { Packet } from '../types';
 import { AlertTriangle, Shield } from 'lucide-react';
 
 // === PROTOCOL → COLOR MAPPING ===
@@ -21,12 +21,13 @@ const getProtocolColor = (protocol: string) => {
 
 // === IST TIME FORMATTER ===
 const formatISTTime = (timestamp: number) => {
-  const date = new Date(timestamp);
-  // Convert to IST (UTC + 5:30)
-  const istOffset = 5.5 * 60 * 60 * 1000;
-  const istTime = new Date(date.getTime() + istOffset);
+  if (timestamp === undefined || timestamp === null) return '';
 
-  return istTime.toLocaleTimeString('en-US', {
+  const millis = timestamp < 1e12 ? timestamp * 1000 : timestamp;
+  const date = new Date(millis);
+  if (isNaN(date.getTime())) return '';
+
+  return date.toLocaleTimeString('en-IN', {
     timeZone: 'Asia/Kolkata',
     hour: '2-digit',
     minute: '2-digit',
@@ -70,14 +71,10 @@ export default function LivePacketTable({
             <th className="px-4 py-3 text-left font-semibold">Protocol</th>
             <th className="px-4 py-3 text-left font-semibold">Slice</th>
             <th className="px-4 py-3 text-left font-semibold">Size</th>
-            <th className="px-4 py-3 text-left font-semibold">
-              <div className="flex items-center gap-3">
-                Detection
-                
-              </div>
-            </th>
+            <th className="px-4 py-3 text-left font-semibold">Detection</th>
           </tr>
         </thead>
+
         <tbody>
           {packets.map((p, idx) => {
             const isSimulated = p.packet_data?.simulated === true;
@@ -89,33 +86,28 @@ export default function LivePacketTable({
                 key={idx}
                 className={`transition-all duration-200 border-b ${
                   isMalicious
-                    ? isSimulated
-                      ? 'bg-purple-900/20 hover:bg-purple-900/30 border-l-4 border-l-purple-500'
-                      : 'bg-red-900/20 hover:bg-red-900/30 border-l-4 border-l-red-500'
+                    ? 'bg-red-900/20 hover:bg-red-900/30 border-l-4 border-l-red-500'
                     : 'border-gray-700 hover:bg-cyan-900/10'
                 }`}
               >
-                {/* Time in IST */}
+                {/* Time */}
                 <td className="px-4 py-2 text-gray-300 text-xs font-medium">
                   {formatISTTime(p.timestamp)}
                 </td>
 
-                {/* Source IP with icon */}
+                {/* Source */}
                 <td className="px-4 py-2">
                   <div className="flex items-center gap-1.5">
-                    {isMalicious && isSimulated && (
-                      <Shield className="w-3.5 h-3.5 text-purple-400" />
-                    )}
-                    {isMalicious && !isSimulated && (
-                      <AlertTriangle className="w-3.5 h-3.5 text-red-400" />
-                    )}
+                    {isMalicious &&
+                      (isSimulated ? (
+                        <Shield className="w-3.5 h-3.5 text-red-400" />
+                      ) : (
+                        <AlertTriangle className="w-3.5 h-3.5 text-red-400" />
+                      ))}
+
                     <span
                       className={`font-mono text-sm ${
-                        isMalicious
-                          ? isSimulated
-                            ? 'text-purple-300'
-                            : 'text-red-300'
-                          : 'text-orange-300'
+                        isMalicious ? 'text-red-300' : 'text-orange-300'
                       }`}
                     >
                       {p.srcIP}
@@ -123,12 +115,12 @@ export default function LivePacketTable({
                   </div>
                 </td>
 
-                {/* Destination IP */}
+                {/* Destination */}
                 <td className="px-4 py-2 text-purple-300 font-mono text-sm">
                   {p.dstIP}
                 </td>
 
-                {/* Protocol Badge */}
+                {/* Protocol */}
                 <td className="px-4 py-2">
                   <span
                     className={`px-2.5 py-1 rounded font-bold text-xs tracking-wider ${protoColor}`}
@@ -137,7 +129,7 @@ export default function LivePacketTable({
                   </span>
                 </td>
 
-                {/* Network Slice Badge */}
+                {/* Network Slice */}
                 <td className="px-4 py-2">
                   <span
                     className={`px-2 py-1 rounded text-white text-xs font-medium ${
@@ -152,7 +144,7 @@ export default function LivePacketTable({
                   </span>
                 </td>
 
-                {/* Packet Size */}
+                {/* Size */}
                 <td className="px-4 py-2 text-gray-200 font-mono text-sm">
                   {p.packetSize}B
                 </td>
@@ -161,24 +153,14 @@ export default function LivePacketTable({
                 <td className="px-4 py-2">
                   {isMalicious ? (
                     <div className="flex items-center gap-1.5">
-                      <span
-                        className={`px-2.5 py-1 rounded text-white text-xs font-bold flex items-center gap-1.5 ${
-                          isSimulated
-                            ? 'bg-purple-600/90'
-                            : 'bg-red-500/90'
-                        }`}
-                      >
+                      <span className="px-2.5 py-1 rounded text-white text-xs font-bold flex items-center gap-1.5 bg-red-600">
                         {isSimulated ? (
                           <Shield className="w-3.5 h-3.5" />
                         ) : (
                           <AlertTriangle className="w-3.5 h-3.5" />
                         )}
                         Malicious
-                        {p.confidence !== undefined && (
-                          <span className="ml-1 opacity-90">
-                            ({(p.confidence * 100).toFixed(0)}%)
-                          </span>
-                        )}
+                        
                       </span>
                     </div>
                   ) : (
