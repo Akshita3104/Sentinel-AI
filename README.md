@@ -60,40 +60,115 @@ Sentinel-AI/
     └── __pycache__/
 ```
 
-## ⚙️ System Architecture Overview
-
-```
-┌──────────┐       ┌────────────┐       ┌─────────────┐       ┌─────────────┐
-│ Mininet  │ ───▶  │ Ryu SDN    │ ───▶  │ Flask ML    │ ───▶  │ Node        │ ───▶ React UI
-│          │       │ Controller │       │ API + SDN   │       │ Backend     │
-└──────────┘       └────────────┘       │ Controls    │       │ (Socket.IO) │
-                                       └─────────────┘       └─────────────┘
-```
-
-### System Workflow
+## ⚙️ System Architecture
 
 ```mermaid
-flowchart LR
-    A[Mininet] -->|Sends Traffic| B[Ryu SDN Controller]
-    B -->|Pushes Flow Stats| C[Flask ML API]
-    C -->|Analyzes Traffic| D[ML Model]
-    D -->|Attack Detected?| E[SDN Rules]
-    D -->|Normal Traffic| F[Allow Traffic]
-    E -->|Mitigation| G[Block/Throttle]
-    C -->|Send Updates| H[Node Backend]
-    H -->|WebSocket| I[React Frontend]
+flowchart TD
+    %% Main Components
+    subgraph Frontend["🖥️ Frontend (React)"]
+        UI[Dashboard] <-->|WebSocket| BE
+        UI -->|User Interaction| UI
+    end
+
+    subgraph Backend["⚙️ Backend (Node.js)"]
+        BE[API Server] <-->|REST| ML
+        BE -->|WebSocket| UI
+    end
+
+    subgraph ML_Service["🧠 ML Service (Flask)"]
+        ML[ML API] <-->|Process| DB[(Model Data)]
+        ML -->|Analyze| Stats[Traffic Stats]
+    end
+
+    subgraph SDN["🌐 SDN Network"]
+        Ryu[Ryu Controller] <-->|OpenFlow| ML
+        Ryu <-->|Flow Rules| Mininet[Mininet]
+    end
+
+    %% Data Flow
+    Mininet -->|1. Traffic| Ryu
+    Ryu -->|2. Flow Stats| ML
+    ML -->|3. Analysis| BE
+    BE -->|4. Updates| UI
+    ML -->|5. Mitigation| Ryu
+    Ryu -->|6. Apply Rules| Mininet
+
+    %% Styling
+    classDef frontend fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
+    classDef backend fill:#e8f5e9,stroke#2e7d32,stroke-width:2px
+    classDef ml fill#fff3e0,stroke#ef6c00,stroke-width:2px
+    classDef sdn fill#f3e5f5,stroke#7b1fa2,stroke-width:2px
+    
+    class UI,Frontend frontend
+    class BE,Backend backend
+    class ML,ML_Service ml
+    class Ryu,Mininet,SDN sdn
+    linkStyle 5,6,7,8,9,10 stroke:#d32f2f,stroke-width:2px
 ```
 
-### Detailed Flow Explanation
+### Component Interactions
 
-1. **Traffic Generation**: Mininet generates network traffic in the test environment
-2. **Flow Monitoring**: Ryu SDN Controller monitors and collects flow statistics
-3. **Analysis**: Flask API processes the data and sends it to the ML Model
-4. **Detection**: ML Model analyzes traffic patterns for anomalies
-5. **Mitigation**: If an attack is detected, SDN rules are automatically applied
-6. **Visualization**: Real-time updates are pushed to the frontend dashboard
+1. **Frontend Layer**
+   - Real-time dashboard with traffic visualization
+   - Interactive controls for network management
+   - Alert and notification system
 
-## 🧩 Key Features
+2. **Backend Services**
+   - Handles API requests and WebSocket connections
+   - Manages data flow between components
+   - Processes and forwards ML analysis results
+
+3. **Machine Learning Service**
+   - Processes network traffic data
+   - Implements DDoS detection algorithms
+   - Generates mitigation rules
+   - Maintains model performance metrics
+
+4. **SDN Infrastructure**
+   - Ryu controller for network management
+   - Mininet for network emulation
+   - Dynamic flow rule management
+
+### Data Flow Sequence
+
+1. **Traffic Monitoring**
+   - Mininet generates and forwards traffic
+   - Ryu controller collects flow statistics
+   - Stats are sent to ML service for analysis
+
+2. **Threat Analysis**
+   - ML model processes traffic patterns
+   - Detects anomalies and potential attacks
+   - Generates appropriate mitigation strategies
+
+3. **Response & Mitigation**
+   - Blocking rules are sent to Ryu
+   - Flow tables are updated in real-time
+   - Malicious traffic is filtered
+
+4. **Visualization & Feedback**
+   - Updates are pushed to the frontend
+   - Administrators monitor system status
+   - Manual intervention when necessary
+
+## 🧠 Machine Learning Pipeline
+
+```mermaid
+graph TD
+    A[Raw Traffic] --> B[Feature Extraction]
+    B --> C[Preprocessing]
+    C --> D[Model Inference]
+    D --> E{Normal Traffic?}
+    E -->|Yes| F[Allow Traffic]
+    E -->|No| G[Generate Mitigation Rules]
+    G --> H[Update SDN Rules]
+```
+
+### Key ML Components
+- **Feature Extraction**: Network flow characteristics
+- **Anomaly Detection**: Identifies suspicious patterns
+- **Classification**: Categorizes attack types
+- **Decision Making**: Determines appropriate responses
 
 ## 🧩 Key Features
 
@@ -149,8 +224,6 @@ cd Sentinel-AI
 ## 🖥 Running the Entire Workflow (5-Terminal Setup)
 
 This is the correct & final execution order.
-
-## 🖥 Running the System
 
 ### Terminal Setup Overview
 
