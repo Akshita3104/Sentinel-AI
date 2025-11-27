@@ -45,13 +45,13 @@ log.info(f"LAPTOP IP AUTO DETECTED → {LAPTOP_IP}")
 RYU_URL        = "http://192.168.56.101:8080"
 
 # Node backend lives on the same Windows laptop as this Flask app
-NODE_HOST      = "localhost"
-NODE_URL       = f"http://{NODE_HOST}:3000/api/emit-blocked-ip"
-NODE_LIVEPACKET= f"http://{NODE_HOST}:3000/api/live-packet"
+NODE_HOST       = "localhost"
+NODE_URL        = f"http://{NODE_HOST}:3000/api/emit-blocked-ip"
+NODE_LIVEPACKET = f"http://{NODE_HOST}:3000/api/live-packet"
 
-MODEL_PATH = "../models/randomforest_enhanced.pkl"
-BLOCKED_IPS    = set()
-running        = False
+MODEL_PATH   = "../models/randomforest_enhanced.pkl"
+BLOCKED_IPS  = set()
+running      = False
 
 # === SIMULATED ATTACK / LOCUST SUPPORT ====================
 # Any IPs added here will ALWAYS be treated as malicious.
@@ -93,9 +93,6 @@ def block_ip(ip: str) -> bool:
 
     url = f"{RYU_URL}/stats/flowentry/add"
 
-    # IMPORTANT:
-    # - dpid must be an INTEGER (our Mininet switch is ID 1)
-    # - eth_type=0x0800 to match IPv4 packets
     rule = {
         "dpid": 1,
         "priority": 60000,
@@ -122,9 +119,15 @@ def block_ip(ip: str) -> bool:
 def unblock_ip(ip: str) -> bool:
     """
     Remove the DROP flow for `ip` from Ryu.
+    Only if Ryu successfully deletes the flow do we remove `ip`
+    from BLOCKED_IPS and report success.
+
+    If Ryu is down or returns an error:
+      - The IP stays in BLOCKED_IPS
+      - We return False
     """
-    if ip not in BLOCKED_IPS:
-        return True
+    if not ip:
+        return False
 
     url = f"{RYU_URL}/stats/flowentry/delete"
 
@@ -139,14 +142,17 @@ def unblock_ip(ip: str) -> bool:
     try:
         r = requests.post(url, json=rule, timeout=3)
         if r.ok:
-            BLOCKED_IPS.discard(ip)
             log.info(f"UNBLOCKED {ip} → SDN DROP RULE REMOVED")
+            if ip in BLOCKED_IPS:
+                BLOCKED_IPS.discard(ip)
+                log.info(f"UNBLOCKED {ip} LOCALLY → removed from BLOCKED_IPS")
             return True
         else:
             log.error(f"RYU flow delete failed: {r.status_code} {r.text}")
+            return False
     except Exception as e:
-        log.error(f"Failed to unblock {ip}: {e}")
-    return False
+        log.error(f"Failed to unblock {ip} in Ryu: {e}")
+        return False
 
 # ==========================================================
 # RATE TRACKER (per source IP) → real PPS for DDoS check
@@ -280,15 +286,13 @@ def capture_loop():
             "packetSize": size,
             "timestamp": int(now * 1000),
             "network_slice": network_slice,   # slice for frontend
-            "slice_priority": slice_priority  # optional
-            # real captured traffic → no detection flags here
+            "slice_priority": slice_priority
         })
 
         # ---------- DDoS DETECTION ----------
         if is_ddos_attack_for_ip(src_ip, size, pps, simulated=False):
             if block_ip(src_ip):
                 try:
-                    # also send slice info to Node for "Blocked Attackers" table
                     requests.post(
                         NODE_URL,
                         json={
@@ -322,25 +326,22 @@ def capture_loop():
 # ==========================================================
 # API ROUTES
 # ==========================================================
-
 @app.post("/simulate-packet")
 def simulate_packet():
     """
     Synthetic packet endpoint used by Locust / demo.
 
-    For the project demo we treat EVERYTHING coming here as a
-    simulated DDoS packet so that:
-      - Ryu blocks the srcIP
-      - Node shows it in the "Blocked Attackers" table
-      - Node also shows it in the Live Packets table as MALICIOUS (red)
+    For the project demo we treat everything coming here as a
+    simulated DDoS packet for detection, but we report it to the
+    dashboard as a normal HIGH DDoS attack (no 'SIMULATED' badge).
     """
     try:
         data = request.get_json(force=True) or {}
 
-        # --- Treat all /simulate-packet traffic as simulated attack ---
+        # Still treat this logically as simulated for detection logic
         is_simulated = True
 
-        # Prefer JSON srcIP, else X-Forwarded-For, else real client IP
+        # Get source IP from request
         src_ip = (
             data.get("srcIP")
             or data.get("srcIp")
@@ -350,6 +351,12 @@ def simulate_packet():
             or "unknown"
         )
 
+        # === RESPECT ALREADY BLOCKED IPS ===
+        if src_ip in BLOCKED_IPS:
+            log.debug(f"Dropping simulated packet from blocked IP: {src_ip}")
+            return jsonify({"status": "dropped", "reason": "IP is blocked"}), 200
+
+        # Get destination IP
         dst_ip = (
             data.get("dstIP")
             or data.get("dstIp")
@@ -384,30 +391,31 @@ def simulate_packet():
             "timestamp": int(ts * 1000),
             "isMalicious": True,
             "confidence": 0.99,
-            "packet_data": {"simulated": True},
+            "packet_data": {"simulated": True},  # internal flag only
             "network_slice": network_slice,
             "slice_priority": slice_priority,
         }
         throttled_live_post(live_payload)
 
         # ---- DDoS DETECTION (forced malicious for simulated) ----
-        # This will always return True because simulated=True
         is_ddos = is_ddos_attack_for_ip(src_ip, packet_size, pps, simulated=is_simulated)
 
         blocked = False
         if is_ddos:
-            # block via Ryu
             blocked = block_ip(src_ip)
             if blocked:
                 try:
+                    # IMPORTANT CHANGE:
+                    # We now send a NORMAL high DDoS threat (not "simulated")
+                    # and we DO NOT mark it as isSimulated: True for the UI.
                     requests.post(
                         NODE_URL,
                         json={
                             "ip": src_ip,
-                            "reason": f"Simulated DDoS Attack (demo) ({pps:.0f} pps, slice={network_slice})",
-                            "threatLevel": "simulated",
+                            "reason": f"DDoS Flood ({pps:.0f} pps, slice={network_slice})",
+                            "threatLevel": "high",
                             "timestamp": datetime.now().isoformat(),
-                            "isSimulated": True,
+                            "isSimulated": False,   # or remove this field entirely
                             "network_slice": network_slice,
                             "slice_priority": slice_priority,
                         },
@@ -417,7 +425,8 @@ def simulate_packet():
                     pass
 
         log.warning(
-            f"[SIMULATE] FORCED DDOS for {src_ip} (pps={pps:.1f}, simulated={is_simulated}, blocked={blocked}, slice={network_slice})"
+            f"[SIMULATE] FORCED DDOS for {src_ip} (pps={pps:.1f}, "
+            f"simulated={is_simulated}, blocked={blocked}, slice={network_slice})"
         )
         return jsonify(
             {
