@@ -64,91 +64,144 @@ Sentinel-AI/
 
 ```mermaid
 flowchart LR
-    UI["React Dashboard"] -- WebSocket --> BE["Node.js Backend"]
-    BE -- REST API --> ML["ML Service (Flask)"]
-    Mininet["Mininet Network"] -- Traffic --> ML
-    ML -- Analysis Result --> BE
-    BE -- Updates --> UI
-    ML -- Malicious Traffic Detected --> Ryu["Ryu Controller"]
-    Ryu -- Flow Rules --> Mininet
+    UI["React Dashboard"] -- Start Capture --> BE["Node.js Backend"]
+    BE -- Forward Request --> ML["ML Service (Flask)"]
+    ML -- Capture Traffic --> Scapy["Scapy/Tshark"]
+    Scapy -- Traffic Data --> ML
+    ML -- Normal Traffic --> BE
+    ML -- Malicious Traffic --> Ryu["Ryu Controller"]
+    Ryu -- Block Traffic --> Mininet["Mininet Network"]
+    Ryu -- Mitigation Status --> ML
+    BE -- Analysis Result --> UI
 ```
 
 ### Component Interactions
 
 1. **Frontend (React Dashboard)**
-   - Captures and visualizes real-time network traffic
-   - Sends captured traffic to the backend for analysis
-   - Displays detection results and mitigation alerts
+   - Initiates traffic capture requests
+   - Displays real-time traffic analysis results
+   - Shows mitigation alerts and network status
+   - Visualizes real-time network traffic
 
 2. **Backend (Node.js)**
-   - Receives traffic data from the frontend
-   - Forwards data to the ML Service for detection
-   - Receives detection/mitigation results from ML Service
-   - Updates the frontend with analysis and mitigation status
+   - Receives capture requests from frontend
+   - Forwards requests to ML Service
+   - Relays analysis results and mitigation status to frontend
+   - Manages WebSocket connections for real-time updates
 
 3. **ML Service (Flask)**
-   - Receives traffic data from the backend
-   - Analyzes traffic for anomalies (normal/malicious)
-   - If traffic is normal, sends result back to backend
-   - If malicious, sends mitigation request to Ryu Controller via Mininet
-   - Receives mitigation response from Ryu Controller
-   - Forwards mitigation status/result to backend
+   - Receives capture requests from backend
+   - Uses Scapy/Tshark for packet capture and analysis
+   - Performs real-time traffic classification (normal/malicious)
+   - For normal traffic: Sends analysis results back to backend
+   - For malicious traffic: Forwards to Ryu Controller via Mininet
+   - Processes Ryu's mitigation response and updates backend
 
-4. **Ryu Controller (SDN)**
-   - Receives mitigation instructions from ML Service
-   - Installs flow rules in Mininet to block/mitigate malicious traffic
-   - Sends mitigation response/status to ML Service
+4. **Scapy/Tshark Integration**
+   - Captures live network traffic
+   - Extracts relevant packet features
+   - Provides real-time traffic data to ML Service
 
-5. **Mininet Network**
+5. **Ryu Controller (SDN)**
+   - Receives malicious traffic alerts from ML Service
+   - Implements flow rules to block malicious traffic in Mininet
+   - Sends mitigation confirmation/status back to ML Service
+
+6. **Mininet Network**
    - Emulates the SDN environment
-   - Forwards traffic and applies flow rules
+   - Applies flow rules from Ryu Controller
+   - Forwards legitimate traffic while blocking malicious flows
 
 ### Data Flow Sequence
 
-1. **Normal Traffic Flow**
-   - Frontend captures network traffic and sends it to the backend.
-   - Backend forwards the traffic data to the ML Service.
-   - ML Service analyzes the traffic:
-     - If traffic is normal, ML Service sends result back to backend.
-     - Backend updates the frontend dashboard with the normal status.
+1. **Traffic Capture Initiation**
+   - Frontend sends capture request to backend
+   - Backend forwards request to ML Service
+   - ML Service initializes Scapy/Tshark for packet capture
 
-2. **DDoS Detection & Mitigation**
-   - If ML Service detects malicious traffic:
-     - ML Service sends a mitigation request to the Ryu Controller via Mininet.
-     - Ryu Controller installs blocking rules in Mininet.
-     - Ryu sends mitigation response/status to ML Service.
-     - ML Service forwards the mitigation status/result to backend.
-     - Backend updates the frontend with mitigation alerts and status.
+2. **Traffic Analysis Flow**
+   - Scapy/Tshark captures and analyzes network packets
+   - Extracted traffic features are sent to ML Service
+   - ML model classifies traffic as normal or malicious
+
+3. **Normal Traffic Handling**
+   - If traffic is classified as normal:
+     - ML Service sends analysis results to backend
+     - Backend updates frontend with traffic statistics
+     - Dashboard displays normal traffic visualization
+
+4. **Malicious Traffic Mitigation**
+   - If traffic is classified as malicious:
+     - ML Service forwards alert to Ryu Controller via Mininet
+     - Ryu Controller implements flow rules to block malicious traffic
+     - Ryu sends mitigation confirmation to ML Service
+     - ML Service forwards status update to backend
+     - Backend notifies frontend about the attack and mitigation
+     - Dashboard updates with security alerts and blocked traffic info
 
 
-## 🧠 Machine Learning Pipeline
+## 🧠 Traffic Processing Pipeline
 
 ```mermaid
 graph TD
-    A[Raw Traffic] --> B[Feature Extraction]
-    B --> C[Preprocessing]
-    C --> D[Model Inference]
-    D --> E{Normal Traffic?}
-    E -->|Yes| F[Allow Traffic]
-    E -->|No| G[Send to SDN Controller via Mininet]
+    A[Capture Request] --> B[Start Scapy/Tshark]
+    B --> C[Packet Capture]
+    C --> D[Feature Extraction]
+    D --> E[Model Inference]
+    E --> F{Normal Traffic?}
+    F -->|Yes| G[Send Analysis to Backend]
+    F -->|No| H[Forward to Ryu Controller]
+    H --> I[Block Traffic in Mininet]
+    I --> J[Send Mitigation Status]
+    J --> K[Update Frontend]
+    G --> K
 ```
 
-### Key ML Components
-- **Feature Extraction**: Network flow characteristics
-- **Anomaly Detection**: Identifies suspicious patterns
-- **Classification**: Categorizes traffic as normal or malicious
-- **Mitigation Trigger**: Sends malicious traffic to SDN Controller via Mininet for mitigation
+### Key Components
+- **Packet Capture**: Real-time traffic monitoring using Scapy/Tshark
+- **Feature Extraction**: Network flow characteristics and packet analysis
+- **ML Classification**: Categorizes traffic as normal or malicious
+- **SDN Integration**: Seamless communication with Ryu Controller
+- **Real-time Updates**: WebSocket-based status updates to frontend
+- **Mitigation Engine**: Automated response to detected threats
+
+### Attack Workflow
+
+```mermaid
+sequenceDiagram
+    participant M as Mininet
+    participant R as Ryu Controller
+    participant F as Flask API
+    participant ML as ML Model
+    participant N as Node Backend
+    participant D as Dashboard
+
+    M->>R: Network Traffic
+    R->>F: Flow Statistics
+    F->>ML: Processed Data
+    ML-->>F: Attack Detection
+    F->>R: Mitigation Rules
+    F->>N: Alert Updates
+    N->>D: Real-time Visualization
+```
+
+### Expected Outcomes
+- Real-time attack detection in the dashboard
+- Automatic mitigation through SDN rules
+- Visual representation of attack patterns
+- Performance metrics and system health monitoring
+4. If attack:
+       - mitigation_engine.py triggers SDN rules
+5. Flask notifies Node backend
+6. Backend pushes live alerts → Frontend (Socket.IO)
+7. Dashboard updates traffic charts + alerts
+
+
+Everything works in a continuous real-time feedback loop.
 
 ## 🧩 Key Features
 
-### 🔍 AI-Powered DDoS Detection
-```mermaid
-pie
-    title Detection Components
-    "Feature Extraction" : 35
-    "ML Classification" : 45
-    "Anomaly Detection" : 20
-```
+### 🔍 DDoS Detection
 - Machine Learning classifier (Random Forest / Sklearn)
 - Real-time feature extraction
 - Flow-based detection
@@ -168,19 +221,6 @@ pie
 - Locust-based traffic generator
 - Custom attack scenarios
 - Real-time impact analysis
-
-### 🧪 Full Integration Pipeline
-```mermaid
-graph LR
-    A[Frontend] --> B[Backend]
-    B --> C[ML Model]
-    C --> D[SDN Controller]
-    D --> E[Network Nodes]
-    E --> A
-```
-- End-to-end automation
-- Real-time feedback loop
-- Scalable architecture
 
 ## 🚀 Installation
 
@@ -293,39 +333,7 @@ Open your browser and navigate to: [http://localhost:8089](http://localhost:8089
 curl http://127.0.0.1:8080/stats/flow/1 | python -m json.tool
 ```
 
-### Attack Workflow
 
-```mermaid
-sequenceDiagram
-    participant M as Mininet
-    participant R as Ryu Controller
-    participant F as Flask API
-    participant ML as ML Model
-    participant N as Node Backend
-    participant D as Dashboard
-
-    M->>R: Network Traffic
-    R->>F: Flow Statistics
-    F->>ML: Processed Data
-    ML-->>F: Attack Detection
-    F->>R: Mitigation Rules
-    F->>N: Alert Updates
-    N->>D: Real-time Visualization
-```
-
-### Expected Outcomes
-- Real-time attack detection in the dashboard
-- Automatic mitigation through SDN rules
-- Visual representation of attack patterns
-- Performance metrics and system health monitoring
-4. If attack:
-       - mitigation_engine.py triggers SDN rules
-5. Flask notifies Node backend
-6. Backend pushes live alerts → Frontend (Socket.IO)
-7. Dashboard updates traffic charts + alerts
-
-
-Everything works in a continuous real-time feedback loop.
 
 ## 🚨 Troubleshooting
 
