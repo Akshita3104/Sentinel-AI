@@ -76,13 +76,12 @@ The system delivers **real-time attack detection**, **network slice intelligence
 ## 🗂 Repository Structure
 
 ```
-Ly-Project/
+Sentinel-AI/
 │
 ├── frontend/            # React Dashboard (Port 5173)
 ├── backend/             # Node.js API Server (Port 3000)
 ├── model/               # ML Engine + Flask API (Port 5001)
 │
-├── ryu-venv/            # Python env for Ryu SDN Controller
 ├── README.md
 └── LICENSE
 ```
