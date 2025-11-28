@@ -86,6 +86,26 @@ Sentinel-AI/
 └── LICENSE
 ```
 
+### Attack Workflow
+
+```mermaid
+sequenceDiagram
+    participant M as Mininet
+    participant R as Ryu Controller
+    participant F as Flask API
+    participant ML as ML Model
+    participant N as Node Backend
+    participant D as Dashboard
+
+    M->>R: Network Traffic
+    R->>F: Flow Statistics
+    F->>ML: Processed Data
+    ML-->>F: Attack Detection
+    F->>R: Mitigation Rules
+    F->>N: Alert Updates
+    N->>D: Real-time Visualization
+```
+
 ---
 
 ## ⚙️ Installation Guide
